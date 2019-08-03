@@ -8,7 +8,7 @@ However since GDB + Python2 continues to be used (old Linuxes, IoT devices, etc.
 
 `gef-legacy` developers will not add new features to the code, but functional bugs can be reported and will be fixed.
 
-For questions, poke the devs on the IRC channel: [Freenode ##gef]((https://webchat.freenode.net/?channels=##gef))
+For questions, poke the devs on the IRC channel: [Freenode ##gef](https://webchat.freenode.net/?channels=##gef)
 
 
 ## Current status ##
