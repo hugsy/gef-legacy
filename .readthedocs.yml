@@ -1,0 +1,14 @@
+version: 2
+
+mkdocs:
+  configuration: mkdocs.yml
+
+formats: all
+
+build:
+  image: latest
+
+python:
+  version: 2.7
+  install:
+    - requirements: docs/requirements.txt
