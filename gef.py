@@ -184,6 +184,7 @@ __gef_remote__                         = None
 __gef_qemu_mode__                      = False
 __gef_default_main_arena__             = "main_arena"
 __gef_int_stream_buffer__              = None
+__gef_redirect_output_fd__             = None
 
 DEFAULT_PAGE_ALIGN_SHIFT               = 12
 DEFAULT_PAGE_SIZE                      = 1 << DEFAULT_PAGE_ALIGN_SHIFT
@@ -322,7 +323,7 @@ def bufferize(f):
 
     @functools.wraps(f)
     def wrapper(*args, **kwargs):
-        global __gef_int_stream_buffer__
+        global __gef_int_stream_buffer__, __gef_redirect_output_fd__
 
         if __gef_int_stream_buffer__:
             return f(*args, **kwargs)
@@ -331,8 +332,32 @@ def bufferize(f):
         try:
             rv = f(*args, **kwargs)
         finally:
-            sys.stdout.write(__gef_int_stream_buffer__.getvalue())
-            sys.stdout.flush()
+            redirect = get_gef_setting("context.redirect")
+            if redirect.startswith("/dev/pts/"):
+                if not __gef_redirect_output_fd__:
+                    # if the FD has never been open, open it
+                    fd = open(redirect, "wt")
+                    __gef_redirect_output_fd__ = fd
+                elif redirect != __gef_redirect_output_fd__.name:
+                    # if the user has changed the redirect setting during runtime, update the state
+                    __gef_redirect_output_fd__.close()
+                    fd = open(redirect, "wt")
+                    __gef_redirect_output_fd__ = fd
+                else:
+                    # otherwise, keep using it
+                    fd = __gef_redirect_output_fd__
+            else:
+                fd = sys.stdout
+                __gef_redirect_output_fd__ = None
+
+            if __gef_redirect_output_fd__ and fd.closed:
+                # if the tty was closed, revert back to stdout
+                fd = sys.stdout
+                __gef_redirect_output_fd__ = None
+                set_gef_setting("context.redirect", "")
+
+            fd.write(__gef_int_stream_buffer__.getvalue())
+            fd.flush()
             __gef_int_stream_buffer__ = None
         return rv
 
@@ -3103,8 +3128,14 @@ def clear_screen(tty=""):
         gdb.execute("shell clear")
         return
 
-    with open(tty, "w") as f:
-        f.write("\x1b[H\x1b[J")
+    # Since the tty can be closed at any time, a PermissionError exception can
+    # occur when `clear_screen` is called. We handle this scenario properly
+    try:
+        with open(tty, "wt") as f:
+            f.write("\x1b[H\x1b[J")
+    except PermissionError:
+        __gef_redirect_output_fd__ = None
+        set_gef_setting("context.redirect", "")
     return
 
 
